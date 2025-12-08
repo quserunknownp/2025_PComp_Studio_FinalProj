@@ -1,0 +1,1 @@
+connect hall effect sensor 3.3v is needed.
