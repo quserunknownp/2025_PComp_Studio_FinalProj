@@ -86,13 +86,13 @@ int main( void )
 	        KB_Scan_Handle(  );
 
 	        /* Handle keyboard lighting */
-	        KB_LED_Handle( );
+	        // KB_LED_Handle( );
 
             /* Handle mouse scan data */
-            MS_Scan_Handle( );
+            // MS_Scan_Handle( );
 
             /* Handle USART2 receiving data */
-            USART2_Receive_Handle( );
+            // USART2_Receive_Handle( );
 	    }
     }
 }
