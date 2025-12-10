@@ -357,35 +357,35 @@ void KB_Sleep_Wakeup_Cfg( void )
     /* Enable GPIOB clock */
     RCC_APB2PeriphClockCmd( RCC_APB2Periph_AFIO, ENABLE );
 
-    GPIO_EXTILineConfig( GPIO_PortSourceGPIOC, GPIO_PinSource0 );
-    EXTI_InitStructure.EXTI_Line = EXTI_Line0;
+    GPIO_EXTILineConfig( RCC_APB2Periph_GPIOC, GPIO_PinSource6 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line6;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init( &EXTI_InitStructure );
 
-    GPIO_EXTILineConfig( GPIO_PortSourceGPIOC, GPIO_PinSource1 );
-    EXTI_InitStructure.EXTI_Line = EXTI_Line1;
+    GPIO_EXTILineConfig( RCC_APB2Periph_GPIOC, GPIO_PinSource7 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line7;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init( &EXTI_InitStructure );
 
-    GPIO_EXTILineConfig( GPIO_PortSourceGPIOC, GPIO_PinSource2 );
-    EXTI_InitStructure.EXTI_Line = EXTI_Line2;
+    GPIO_EXTILineConfig( RCC_APB2Periph_GPIOC, GPIO_PinSource8 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line8;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init( &EXTI_InitStructure );
 
-    GPIO_EXTILineConfig( GPIO_PortSourceGPIOC, GPIO_PinSource3 );
-    EXTI_InitStructure.EXTI_Line = EXTI_Line3;
+    GPIO_EXTILineConfig( RCC_APB2Periph_GPIOC, GPIO_PinSource9 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line9;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init( &EXTI_InitStructure );
 
-    EXTI->INTENR |= EXTI_INTENR_MR0 | EXTI_INTENR_MR1 | EXTI_INTENR_MR2 | EXTI_INTENR_MR3;
+    EXTI->INTENR |= EXTI_INTENR_MR6 | EXTI_INTENR_MR7 | EXTI_INTENR_MR8 | EXTI_INTENR_MR9;
 }
 
 /*********************************************************************
@@ -407,7 +407,7 @@ void KB_Scan( void )
         scan_cnt = 0;
 
         /* Determine whether the two scan results are consistent */
-        if( scan_result == ( GPIO_ReadInputData( GPIOC ) & 0x000F ) )
+        if( scan_result == ( GPIO_ReadInputData( GPIOC ) & 0x03C0 ) )
         //여기에 scan을 GPIO_READInputData 말고 ADC 데이터로 바꾼 후, if문 추가로 자석축 사용.
         {
             KB_Scan_Done = 1;
@@ -417,7 +417,7 @@ void KB_Scan( void )
     else if( ( scan_cnt % 5 ) == 0 )
     {
         /* Save the first scan result */
-        scan_result = ( GPIO_ReadInputData( GPIOC ) & 0x000F );
+        scan_result = ( GPIO_ReadInputData( GPIOC ) & 0x03C0 );
     }
 }
 
@@ -620,35 +620,35 @@ void MS_Sleep_Wakeup_Cfg( void )
     /* Enable GPIOC clock */
     RCC_APB2PeriphClockCmd( RCC_APB2Periph_AFIO, ENABLE );
 
-    GPIO_EXTILineConfig( RCC_APB2Periph_GPIOC, GPIO_PinSource6 );
-    EXTI_InitStructure.EXTI_Line = EXTI_Line6;
+    GPIO_EXTILineConfig( GPIO_PortSourceGPIOC, GPIO_PinSource0 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line0;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init( &EXTI_InitStructure );
 
-    GPIO_EXTILineConfig( RCC_APB2Periph_GPIOC, GPIO_PinSource7 );
-    EXTI_InitStructure.EXTI_Line = EXTI_Line7;
+    GPIO_EXTILineConfig( GPIO_PortSourceGPIOC, GPIO_PinSource1 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line1;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init( &EXTI_InitStructure );
 
-    GPIO_EXTILineConfig( RCC_APB2Periph_GPIOC, GPIO_PinSource8 );
-    EXTI_InitStructure.EXTI_Line = EXTI_Line8;
+    GPIO_EXTILineConfig( GPIO_PortSourceGPIOC, GPIO_PinSource2 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line2;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init( &EXTI_InitStructure );
 
-    GPIO_EXTILineConfig( RCC_APB2Periph_GPIOC, GPIO_PinSource9 );
-    EXTI_InitStructure.EXTI_Line = EXTI_Line9;
+    GPIO_EXTILineConfig( GPIO_PortSourceGPIOC, GPIO_PinSource3 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line3;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init( &EXTI_InitStructure );
 
-    EXTI->INTENR |= EXTI_INTENR_MR6 | EXTI_INTENR_MR7 | EXTI_INTENR_MR8 | EXTI_INTENR_MR9;
+    EXTI->INTENR |= EXTI_INTENR_MR0 | EXTI_INTENR_MR1 | EXTI_INTENR_MR2 | EXTI_INTENR_MR3;
 }
 
 /*********************************************************************
