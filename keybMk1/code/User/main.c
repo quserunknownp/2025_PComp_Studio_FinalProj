@@ -98,8 +98,14 @@ int main( void )
             /* Handle adc scan data */
             ADC_Scan_Handle( );
 
+			/* joystick mouse handle */
+			
+			ADCMS_Scan_Handle( );
+
             /* Handle USART3 receiving data */
             USART3_Receive_Handle( );
 	    }
     }
 }
+
+

@@ -43,6 +43,9 @@ extern uint16_t adcKB( void );
 extern void ADC_Scan_Handle( void );
 extern void ADCKB_Scan( void );
 
+extern void ADCMS_Scan_Handle( void );
+extern void ADCMS_Scan( void );
+
 
 extern void TIM3_Init( uint16_t arr, uint16_t psc );
 extern void USART3_Init( uint32_t baudrate );
@@ -63,3 +66,4 @@ extern void MCU_Sleep_Wakeup_Operate( void );
 
 
 #endif
+    

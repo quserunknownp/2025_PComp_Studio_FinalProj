@@ -16,6 +16,9 @@
 #include "ch32v30x_usbhs_device.h"
 #include "usbd_composite_km.h"
 
+#include <math.h>
+#include <string.h>
+
 /*******************************************************************************/
 /* Variable Definition */
 
@@ -23,8 +26,6 @@
 volatile uint8_t  MS_Scan_Done = 0x00;                                          // Mouse Movement Scan Done
 volatile uint16_t MS_Scan_Result = 0x000F;                                      // Mouse Movement Scan Result
 uint8_t  MS_Data_Pack[ 4 ] = { 0x00 };                                          // Mouse IN Data Packet
-
-
 
 /* Keyboard */
 volatile uint8_t  KB_Scan_Done = 0x00;                                          // Keyboard Keys Scan Done
@@ -44,8 +45,20 @@ volatile uint16_t ADC_Scan_Result = 0xF800;                                     
 volatile uint16_t ADC_Scan_Last_Result = 0xF800;                                 // Keyboard Keys Last Scan Result
 uint8_t  ADC_Data_Pack[ 8 ] = { 0x00 };                                          // Keyboard IN Data Packet
 
-volatile uint8_t ADCMS_Scan_Done = 0;
+/* ADC Mouse (Joystick) */
+volatile uint8_t  ADCMS_Scan_Done = 0x00;                                         // ADC Mouse Scan Done Flag
+uint8_t  ADCMS_Data_Pack[ 4 ] = { 0x00 };                                         // ADC Mouse IN Data Packet
+volatile uint8_t  Current_Button_State = 0x00;                                    // Shared Button State (Bitmap)
 
+#define JS_IDX_X            5       // ADC 배열 인덱스 (X축)
+#define JS_IDX_Y            6       // ADC 배열 인덱스 (Y축)
+
+#define JS_CENTER_X         2047    // 측정된 X축 중앙값
+#define JS_CENTER_Y         2067    // 측정된 Y축 중앙값
+
+#define JS_JUMP_THRESHOLD   50     // 급발진 방지 데드존 (점프 보정)
+#define JS_MAX_RADIUS       250.0f  // 미동 나사 최대 반경 (픽셀)
+#define JS_FULL_SCALE       2048.0f // ADC 전체 스케일 (0~4095의 절반)
 
 /* USART */
 volatile uint8_t  USART_Recv_Dat = 0x00;
@@ -119,7 +132,7 @@ void TIM3_IRQHandler( void )
         /* ADC scan*/   
         ADCKB_Scan( );
 
-        ADCMS_Scan( );
+        ADCMS_Scan();
 
         /* Start timing for uploading the key value received from 3 */
         if( USART_Send_Flag )
@@ -759,7 +772,7 @@ void KB_ADC_INIT( void )
     RCC_ADCCLKConfig(RCC_PCLK2_Div8);
 
     // 2. GPIO 설정 (PA0~PA4)
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_4;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
 
@@ -819,11 +832,11 @@ void KB_ADC_INIT( void )
 
 uint16_t adcKB( void ){
     uint16_t scan_result = 0;
-    scan_result |= (ADC_Values[0] > 1600) ? 0x8000 : 0;
-    scan_result |= (ADC_Values[1] > 1600) ? 0x4000 : 0;
-    scan_result |= (ADC_Values[2] > 1600) ? 0x2000 : 0;
-    scan_result |= (ADC_Values[3] > 1600) ? 0x1000 : 0;
-    scan_result |= (ADC_Values[4] > 1600) ? 0x0800 : 0;
+    scan_result |= (ADC_Values[0] > 1700) ? 0x8000 : 0;
+    scan_result |= (ADC_Values[1] > 1700) ? 0x4000 : 0;
+    scan_result |= (ADC_Values[2] > 1700) ? 0x2000 : 0;
+    scan_result |= (ADC_Values[3] > 1700) ? 0x1000 : 0;
+    scan_result |= (ADC_Values[4] > 1700) ? 0x0800 : 0;
     return scan_result;
 }
 
@@ -994,15 +1007,115 @@ void ADC_Scan_Handle( void ){
 
 void ADCMS_Scan( void )
 {
-    static uint16_t adc_scan_cnt = 0;
+    static uint16_t adc_tick = 0;
 
-    adc_scan_cnt++;
-    // 2ms 마다 스캔 (너무 빠르면 3~4로 늘리셔도 됩니다)
-    if( adc_scan_cnt >= 2 ) 
+    adc_tick++;
+    
+    // 2ms 마다 플래그 세우기 (속도가 너무 빠르면 3~4로 늘리세요)
+    if( adc_tick >= 2 ) 
     {
-        adc_scan_cnt = 0;
+        adc_tick = 0;
+        ADCMS_Scan_Done = 1; // "메인 루프야, 조이스틱 계산해라!" 신호
+    }
+}
+
+void ADCMS_Scan_Handle( void )
+{
+    // 적분 오차를 기억하기 위한 정적 변수 (함수 종료 후에도 값 유지)
+    static float virt_x = 0.0f;
+    static float virt_y = 0.0f;
+
+    // 플래그 확인: 타이머 인터럽트가 스캔 신호를 보냈는가?
+    if( ADCMS_Scan_Done )
+    {
+        ADCMS_Scan_Done = 0; // 플래그 초기화
+
+        // 1. DMA 버퍼에서 최신 ADC Raw 값 읽기
+        uint16_t raw_x = ADC_Values[JS_IDX_X];
+        uint16_t raw_y = ADC_Values[JS_IDX_Y];
+
+        // 2. 중앙값 기준 차이 계산 (Offset)
+        float diff_x = (float)raw_x - JS_CENTER_X;
+        float diff_y = (float)raw_y - JS_CENTER_Y;
         
-        // 메인 루프에게 "조이스틱 계산해!" 라고 신호
-        ADCMS_Scan_Done = 1; 
+        // 절대값 계산 (fabsf는 float 전용 절대값 함수)
+        float abs_x = fabsf(diff_x);
+        float abs_y = fabsf(diff_y);
+        
+        // 정규화된 값을 담을 변수 (-1.0 ~ 1.0)
+        float norm_x = 0.0f;
+        float norm_y = 0.0f;
+
+        // 3. 점프 보정 (Jump Correction) & 정규화
+        // X축 처리
+        if (abs_x > JS_JUMP_THRESHOLD) 
+        {
+            // (현재 오차 - 임계값) / (최대 범위 - 임계값) = 0.0 ~ 1.0 비율 생성
+            float ratio = (abs_x - JS_JUMP_THRESHOLD) / (JS_FULL_SCALE - JS_JUMP_THRESHOLD);
+            
+            // 원래 방향(부호) 복구
+            if (diff_x > 0) norm_x = ratio;
+            else            norm_x = -ratio;
+        }
+        else 
+        {
+            norm_x = 0.0f; // 임계값 이하는 노이즈로 간주하여 0 처리
+        }
+
+        // Y축 처리
+        if (abs_y > JS_JUMP_THRESHOLD) 
+        {
+            float ratio = (abs_y - JS_JUMP_THRESHOLD) / (JS_FULL_SCALE - JS_JUMP_THRESHOLD);
+            
+            if (diff_y > 0) norm_y = ratio;
+            else            norm_y = -ratio;
+        }
+        else 
+        {
+            norm_y = 0.0f;
+        }
+
+        // 4. 원형 제한 (Circular Clamping)
+        // 대각선 이동 시 사각형 모서리(길이 > 1.0)로 나가는 것을 방지
+        float magnitude = sqrtf(norm_x * norm_x + norm_y * norm_y);
+        
+        if (magnitude > 1.0f) 
+        {
+            norm_x = norm_x / magnitude;
+            norm_y = norm_y / magnitude;
+        }
+
+        // 5. 가상 좌표 적분 (Virtual Coordinate Integration)
+        // 목표 위치 계산 (비율 * 최대 반경 100픽셀)
+        float target_x = norm_x * JS_MAX_RADIUS;
+        float target_y = norm_y * JS_MAX_RADIUS;
+
+        // 이동해야 할 델타값(차이) 계산: 목표 위치 - 현재 가상 위치
+        float delta_x = target_x - virt_x;
+        float delta_y = target_y - virt_y;
+
+        // 실제 USB로 보낼 정수값 변환 (int8_t: -128 ~ 127)
+        int8_t send_x = (int8_t)delta_x;
+        int8_t send_y = (int8_t)delta_y;
+
+        // 6. 유의미한 움직임이 있을 때만 USB 전송
+        if (send_x != 0 || send_y != 0)
+        {
+            // [중요] 버튼 상태 동기화
+            // ADCMS 패킷이지만, 버튼 상태는 공유 변수(Current_Button_State)를 사용해야 함
+            ADCMS_Data_Pack[0] = Current_Button_State; 
+            
+            // 이동 데이터 입력
+            ADCMS_Data_Pack[1] = send_x;
+            ADCMS_Data_Pack[2] = send_y;
+            ADCMS_Data_Pack[3] = 0; // 휠 데이터 (사용 안 함)
+
+            // 가상 좌표 업데이트 (중요: 실제 보낸 send 값만큼만 더해야 오차 누적 안 됨)
+            virt_x += (float)send_x;
+            virt_y += (float)send_y;
+
+            // USB 엔드포인트 2번으로 데이터 업로드
+            USBHS_Endp_DataUp( DEF_UEP2, ADCMS_Data_Pack, 4, DEF_UEP_CPY_LOAD );
+        }
     }
 }
