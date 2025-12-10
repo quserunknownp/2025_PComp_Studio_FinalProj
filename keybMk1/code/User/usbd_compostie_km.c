@@ -24,6 +24,8 @@ volatile uint8_t  MS_Scan_Done = 0x00;                                          
 volatile uint16_t MS_Scan_Result = 0x000F;                                      // Mouse Movement Scan Result
 uint8_t  MS_Data_Pack[ 4 ] = { 0x00 };                                          // Mouse IN Data Packet
 
+
+
 /* Keyboard */
 volatile uint8_t  KB_Scan_Done = 0x00;                                          // Keyboard Keys Scan Done
 volatile uint16_t KB_Scan_Result = 0xF000;                                      // Keyboard Keys Current Scan Result
@@ -41,6 +43,8 @@ volatile uint8_t  ADC_Scan_Done = 0x00;                                         
 volatile uint16_t ADC_Scan_Result = 0xF800;                                      // Keyboard Keys Current Scan Result
 volatile uint16_t ADC_Scan_Last_Result = 0xF800;                                 // Keyboard Keys Last Scan Result
 uint8_t  ADC_Data_Pack[ 8 ] = { 0x00 };                                          // Keyboard IN Data Packet
+
+volatile uint8_t ADCMS_Scan_Done = 0;
 
 
 /* USART */
@@ -114,6 +118,8 @@ void TIM3_IRQHandler( void )
 
         /* ADC scan*/   
         ADCKB_Scan( );
+
+        ADCMS_Scan( );
 
         /* Start timing for uploading the key value received from 3 */
         if( USART_Send_Flag )
@@ -982,5 +988,21 @@ void ADC_Scan_Handle( void ){
             /* Clear flag after successful loading */
             flag = 0;
         }
+    }
+}
+
+
+void ADCMS_Scan( void )
+{
+    static uint16_t adc_scan_cnt = 0;
+
+    adc_scan_cnt++;
+    // 2ms 마다 스캔 (너무 빠르면 3~4로 늘리셔도 됩니다)
+    if( adc_scan_cnt >= 2 ) 
+    {
+        adc_scan_cnt = 0;
+        
+        // 메인 루프에게 "조이스틱 계산해!" 라고 신호
+        ADCMS_Scan_Done = 1; 
     }
 }
