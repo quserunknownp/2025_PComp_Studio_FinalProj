@@ -15,7 +15,7 @@
  * Composite Keyboard and Mouse Example:
  * This example uses PB12-PB15 and PA4-PA7 to simulate keyboard key pressing and mouse
  * movement respectively, active low.
- * At the same time, it also uses USART3(PA3) to receive the specified data sent from
+ * At the same time, it also uses USART1(PA3) to receive the specified data sent from
  * the host to simulate the pressing and releasing of the following specific keyboard
  * keys. Data is sent in hexadecimal format and 1 byte at a time.
  * 'W' -> 0x1A
@@ -35,6 +35,7 @@
 /* Header Files */
 #include "ch32v30x_usbhs_device.h"
 #include "usbd_composite_km.h"
+#include "drv2605.h"
 
 /*********************************************************************
  * @fn      main
@@ -55,9 +56,9 @@ int main( void )
 	printf( "ChipID:%08x\r\n", DBGMCU_GetCHIPID() );
     printf( "USBHS Composite KM Device Test\r\n" );
 
-	/* Initialize USART3 for receiving the specified keyboard data */
-	USART3_Init( 115200 );
-	printf( "USART3 Init OK!\r\n" );
+	/* Initialize USART1 for receiving the specified keyboard data */
+	USART1_Init( 115200 );
+	printf( "USART1 Init OK!\r\n" );
 
 	/* Initialize GPIO for keyboard scan */
 	KB_Scan_Init( );
@@ -73,6 +74,14 @@ int main( void )
 	KB_ADC_INIT( );
 	printf( "adc Scan Init OK!\r\n" );
 
+	DRV2605_Init();
+
+	ADC_Calibration();
+
+	IMU_Init();
+
+	IMU_Calibrate();
+
 	/* Initialize timer for Keyboard and mouse scan timing */
 	TIM3_Init( 1, SystemCoreClock / 10000 - 1 );
 	printf( "TIM3 Init OK!\r\n" );
@@ -81,6 +90,8 @@ int main( void )
 	USBHS_RCC_Init( );
 	USBHS_Device_Init( ENABLE );
 	USB_Sleep_Wakeup_CFG( );
+
+	
 
 	while( 1 )
     {
@@ -101,9 +112,10 @@ int main( void )
 			/* joystick mouse handle */
 			
 			ADCMS_Scan_Handle( );
+			IMU_Mouse_Handle();
 
-            /* Handle USART3 receiving data */
-            USART3_Receive_Handle( );
+            /* Handle USART1 receiving data */
+            USART1_Receive_Handle( );
 	    }
     }
 }

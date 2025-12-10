@@ -45,11 +45,11 @@ extern void ADCKB_Scan( void );
 
 extern void ADCMS_Scan_Handle( void );
 extern void ADCMS_Scan( void );
-
+extern void ADC_Calibration(void);
 
 extern void TIM3_Init( uint16_t arr, uint16_t psc );
-extern void USART3_Init( uint32_t baudrate );
-extern void USART3_Receive_Handle( void );
+extern void USART1_Init( uint32_t baudrate );
+extern void USART1_Receive_Handle( void );
 extern void KB_Scan_Init( void );
 extern void KB_Sleep_Wakeup_Cfg( void );
 extern void KB_Scan( void );
@@ -63,7 +63,8 @@ extern void USB_Sleep_Wakeup_CFG( void );
 extern void MCU_Sleep_Wakeup_Operate( void );
 
 
-
-
+extern void IMU_Init(void);
+extern void IMU_Mouse_Scan(void);
+extern void IMU_Mouse_Handle(void);
+extern void IMU_Calibrate(void);
 #endif
-    
