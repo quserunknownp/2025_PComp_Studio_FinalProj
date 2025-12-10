@@ -19,13 +19,9 @@
 /*******************************************************************************/
 /* Variable Definition */
 
-#define NUM_CHANNELS    7
-volatile u16 ADC_Values[NUM_CHANNELS]; 
-s16 Calibrattion_Val = 0;
-
 /* Mouse */
 volatile uint8_t  MS_Scan_Done = 0x00;                                          // Mouse Movement Scan Done
-volatile uint16_t MS_Scan_Result = 0x00F0;                                      // Mouse Movement Scan Result
+volatile uint16_t MS_Scan_Result = 0x000F;                                      // Mouse Movement Scan Result
 uint8_t  MS_Data_Pack[ 4 ] = { 0x00 };                                          // Mouse IN Data Packet
 
 /* Keyboard */
@@ -36,15 +32,28 @@ uint8_t  KB_Data_Pack[ 8 ] = { 0x00 };                                          
 volatile uint8_t  KB_LED_Last_Status = 0x00;                                    // Keyboard LED Last Result
 volatile uint8_t  KB_LED_Cur_Status = 0x00;                                     // Keyboard LED Current Result
 
+/* ADC */
+char Data_Buffer[64];
+#define NUM_CHANNELS    7
+volatile u16 ADC_Values[NUM_CHANNELS]; 
+s16 Calibrattion_Val = 0;
+volatile uint8_t  ADC_Scan_Done = 0x00;                                          // Keyboard Keys Scan Done
+volatile uint16_t ADC_Scan_Result = 0xF800;                                      // Keyboard Keys Current Scan Result
+volatile uint16_t ADC_Scan_Last_Result = 0xF800;                                 // Keyboard Keys Last Scan Result
+uint8_t  ADC_Data_Pack[ 8 ] = { 0x00 };                                          // Keyboard IN Data Packet
+
+
 /* USART */
 volatile uint8_t  USART_Recv_Dat = 0x00;
 volatile uint8_t  USART_Send_Flag = 0x00;
 volatile uint8_t  USART_Send_Cnt = 0x00;
 
+
+
 /*******************************************************************************/
 /* Interrupt Function Declaration */
 void TIM3_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
-void USART2_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
+void USART3_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 
 /*********************************************************************
  * @fn      TIM3_Init
@@ -103,7 +112,10 @@ void TIM3_IRQHandler( void )
         /* Handle mouse scan */
         MS_Scan( );
 
-        /* Start timing for uploading the key value received from USART2 */
+        /* ADC scan*/   
+        ADCKB_Scan( );
+
+        /* Start timing for uploading the key value received from 3 */
         if( USART_Send_Flag )
         {
             USART_Send_Cnt++;
@@ -112,7 +124,7 @@ void TIM3_IRQHandler( void )
 }
 
 /*********************************************************************
- * @fn      USART2_Init
+ * @fn      USART3_Init
  *
  * @brief   Initialize UART2 to receive keyboard data sent through the
  *          PC serial software.
@@ -121,121 +133,122 @@ void TIM3_IRQHandler( void )
  *
  * @return  none
  */
-// void USART2_Init( uint32_t baudrate )
-// {
-//     GPIO_InitTypeDef GPIO_InitStructure;
-//     USART_InitTypeDef USART_InitStructure;
-//     NVIC_InitTypeDef NVIC_InitStructure;
+void USART3_Init( uint32_t baudrate )
+{
+    GPIO_InitTypeDef GPIO_InitStructure;
+    USART_InitTypeDef USART_InitStructure;
+    NVIC_InitTypeDef NVIC_InitStructure;
 
-//     RCC_APB1PeriphClockCmd( RCC_APB1Periph_USART2, ENABLE );
-//     RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOA, ENABLE );
+    RCC_APB1PeriphClockCmd( RCC_APB1Periph_USART3, ENABLE );
+    RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOB, ENABLE );
 
-//     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
-//     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-//     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
-//     GPIO_Init( GPIOA, &GPIO_InitStructure );
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+    GPIO_Init( GPIOB, &GPIO_InitStructure );
 
-//     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
-//     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
-//     GPIO_Init( GPIOA, &GPIO_InitStructure );
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_11;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+    GPIO_Init( GPIOB, &GPIO_InitStructure );
 
-//     NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
-//     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
-//     NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
-//     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-//     NVIC_Init( &NVIC_InitStructure );
+    NVIC_InitStructure.NVIC_IRQChannel = USART3_IRQn; 
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init( &NVIC_InitStructure );
 
-//     USART_InitStructure.USART_BaudRate = baudrate;
-//     USART_InitStructure.USART_WordLength = USART_WordLength_8b;
-//     USART_InitStructure.USART_StopBits = USART_StopBits_1;
-//     USART_InitStructure.USART_Parity = USART_Parity_No;
-//     USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-//     USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
+    USART_InitStructure.USART_BaudRate = baudrate;
+    USART_InitStructure.USART_WordLength = USART_WordLength_8b;
+    USART_InitStructure.USART_StopBits = USART_StopBits_1;
+    USART_InitStructure.USART_Parity = USART_Parity_No;
+    USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+    USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
 
-//     USART_Init( USART2, &USART_InitStructure );
-//     USART_ITConfig( USART2, USART_IT_RXNE, ENABLE );
-//     USART_Cmd( USART2, ENABLE );
-// }
+    USART_Init( USART3, &USART_InitStructure );
+    USART_ITConfig( USART3, USART_IT_RXNE, ENABLE );
+    USART_Cmd( USART3, ENABLE );
+}
 
 /*********************************************************************
- * @fn      USART2_IRQHandler
+ * @fn      USART3_IRQHandler
  *
- * @brief   This function handles USART2 global interrupt request.
+ * @brief   This function handles USART3 global interrupt request.
  *
  * @return  none
  */
-// void USART2_IRQHandler( void )
-// {
-//     if( USART_GetITStatus( USART2, USART_IT_RXNE) != RESET )
-//     {
-//         /* Save the key value received from USART2 */
-//         USART_Recv_Dat = USART_ReceiveData( USART2 ) & 0xFF;
-//     }
-// }
+void USART3_IRQHandler( void )
+{
+    if( USART_GetITStatus( USART3, USART_IT_RXNE) != RESET )
+    {
+        /* Save the key value received from USART3 */
+        USART_Recv_Dat = USART_ReceiveData( USART3 ) & 0xFF;
+    }
+}
 
 /*********************************************************************
- * @fn      USART2_Receive_Handle
+ * @fn      USART3_Receive_Handle
  *
- * @brief   This function handles the key value received from USART2.
+ * @brief   This function handles the key value received from USART3.
  *
  * @return  none
  */
-// void USART2_Receive_Handle( void )
-// {
-//     uint8_t status;
-//     static uint8_t flag = 0x00;
+void USART3_Receive_Handle( void )
+{
+    uint8_t status;
+    static uint8_t flag = 0x00;
 
-//     if( flag == 0 )
-//     {
-//         /* Store the received specified key value into the keyboard data buffer */
-//         if( ( USART_Recv_Dat == DEF_KEY_CHAR_A ) ||
-//             ( USART_Recv_Dat == DEF_KEY_CHAR_W ) ||
-//             ( USART_Recv_Dat == DEF_KEY_CHAR_S ) ||
-//             ( USART_Recv_Dat == DEF_KEY_CHAR_D ) )
-//         {
-//             memset( KB_Data_Pack, 0x00, sizeof( KB_Data_Pack ) );
-//             KB_Data_Pack[ 2 ] = USART_Recv_Dat;
-//             flag = 1;
-//         }
-//     }
-//     else if( flag == 1 )
-//     {
-//         /* Load keyboard data to endpoint 1 */
-//         status = USBHS_Endp_DataUp( DEF_UEP1, KB_Data_Pack, sizeof( KB_Data_Pack ), DEF_UEP_CPY_LOAD );
+    if( flag == 0 )
+    {
+        /* Store the received specified key value into the keyboard data buffer */
+        if( ( USART_Recv_Dat == DEF_KEY_CHAR_A ) ||
+            ( USART_Recv_Dat == DEF_KEY_CHAR_W ) ||
+            ( USART_Recv_Dat == DEF_KEY_CHAR_S ) ||
+            ( USART_Recv_Dat == DEF_KEY_CHAR_D ) ||
+            ( USART_Recv_Dat == DEF_KEY_CHAR_F ) )
+        {
+            memset( KB_Data_Pack, 0x00, sizeof( KB_Data_Pack ) );
+            KB_Data_Pack[ 2 ] = USART_Recv_Dat;
+            flag = 1;
+        }
+    }
+    else if( flag == 1 )
+    {
+        /* Load keyboard data to endpoint 1 */
+        status = USBHS_Endp_DataUp( DEF_UEP1, KB_Data_Pack, sizeof( KB_Data_Pack ), DEF_UEP_CPY_LOAD );
 
-//         if( status == READY )
-//         {
-//             /* Enable timing for uploading the key value */
-//             USART_Send_Cnt = 0;
-//             USART_Send_Flag = 1;
-//             flag = 2;
-//         }
-//     }
-//     else if( flag == 2 )
-//     {
-//         /* Delay 10ms to ensure that the key value is successfully uploaded,
-//          * and prepare the data packet indicating the key release.
-//          */
-//         if( USART_Send_Cnt >= 50 )
-//         {
-//             USART_Send_Flag = 0;
-//             memset( KB_Data_Pack, 0x00, sizeof( KB_Data_Pack ) );
-//             flag = 3;
-//         }
-//     }
-//     else if( flag == 3 )
-//     {
-//         /* Load keyboard data to endpoint 1 */
-//         status = USBHS_Endp_DataUp( DEF_UEP1, KB_Data_Pack, sizeof( KB_Data_Pack ), DEF_UEP_CPY_LOAD );
+        if( status == READY )
+        {
+            /* Enable timing for uploading the key value */
+            USART_Send_Cnt = 0;
+            USART_Send_Flag = 1;
+            flag = 2;
+        }
+    }
+    else if( flag == 2 )
+    {
+        /* Delay 10ms to ensure that the key value is successfully uploaded,
+         * and prepare the data packet indicating the key release.
+         */
+        if( USART_Send_Cnt >= 50 )
+        {
+            USART_Send_Flag = 0;
+            memset( KB_Data_Pack, 0x00, sizeof( KB_Data_Pack ) );
+            flag = 3;
+        }
+    }
+    else if( flag == 3 )
+    {
+        /* Load keyboard data to endpoint 1 */
+        status = USBHS_Endp_DataUp( DEF_UEP1, KB_Data_Pack, sizeof( KB_Data_Pack ), DEF_UEP_CPY_LOAD );
 
-//         /* Clear variables for next reception */
-//         if( status == READY )
-//         {
-//             USART_Recv_Dat = 0;
-//             flag = 0;
-//         }
-//     }
-// }
+        /* Clear variables for next reception */
+        if( status == READY )
+        {
+            USART_Recv_Dat = 0;
+            flag = 0;
+        }
+    }
+}
 
 /*********************************************************************
  * @fn      KB_Scan_Init
@@ -246,64 +259,16 @@ void TIM3_IRQHandler( void )
  */
 void KB_Scan_Init( void )
 {
-    ADC_InitTypeDef ADC_InitStructure={0};
-    GPIO_InitTypeDef GPIO_InitStructure={0};
-    DMA_InitTypeDef DMA_InitStructure={0};
+    GPIO_InitTypeDef GPIO_InitStructure = { 0 };
 
-    // 1. 클럭 활성화
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_ADC1, ENABLE );
-    RCC_AHBPeriphClockCmd( RCC_AHBPeriph_DMA1, ENABLE );
-    RCC_ADCCLKConfig(RCC_PCLK2_Div8);
+    /* Enable GPIOB clock */
+    RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOB, ENABLE );
 
-    // 2. GPIO 설정 (PA0~PA4)
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_4;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
-
-    // 3. DMA1 Channel1 설정
-    DMA_DeInit(DMA1_Channel1);
-    DMA_InitStructure.DMA_PeripheralBaseAddr = (u32)&ADC1->RDATAR;
-    DMA_InitStructure.DMA_MemoryBaseAddr = (u32)ADC_Values;
-    DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;
-    DMA_InitStructure.DMA_BufferSize = NUM_CHANNELS;
-    DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
-    DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
-    DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
-    DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
-    DMA_InitStructure.DMA_Mode = DMA_Mode_Circular; 
-    DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
-    DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
-    DMA_Init( DMA1_Channel1, &DMA_InitStructure );
-    DMA_Cmd( DMA1_Channel1, ENABLE );
-
-    // 4. ADC 설정
-    ADC_DeInit(ADC1);
-    ADC_InitStructure.ADC_Mode = ADC_Mode_Independent;
-    ADC_InitStructure.ADC_ScanConvMode = ENABLE;
-    ADC_InitStructure.ADC_ContinuousConvMode = ENABLE;
-    ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_None;
-    ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
-    ADC_InitStructure.ADC_NbrOfChannel = NUM_CHANNELS;
-    ADC_Init(ADC1, &ADC_InitStructure);
-
-    ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 1, ADC_SampleTime_239Cycles5);
-    ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 2, ADC_SampleTime_239Cycles5);
-    ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 3, ADC_SampleTime_239Cycles5);
-    ADC_RegularChannelConfig(ADC1, ADC_Channel_3, 4, ADC_SampleTime_239Cycles5);
-    ADC_RegularChannelConfig(ADC1, ADC_Channel_4, 5, ADC_SampleTime_239Cycles5);
-    ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 6, ADC_SampleTime_239Cycles5);
-    ADC_RegularChannelConfig(ADC1, ADC_Channel_6, 7, ADC_SampleTime_239Cycles5);
-
-    ADC_DMACmd(ADC1, ENABLE);
-    ADC_Cmd(ADC1, ENABLE);
-
-    ADC_ResetCalibration(ADC1);
-    while(ADC_GetResetCalibrationStatus(ADC1));
-    ADC_StartCalibration(ADC1);
-    while(ADC_GetCalibrationStatus(ADC1));
-    Calibrattion_Val = Get_CalibrationValue(ADC1); 
-
-    ADC_SoftwareStartConvCmd(ADC1, ENABLE);
+    /* Initialize GPIOB for the keyboard scan */
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init( GPIOB, &GPIO_InitStructure );
 }
 
 /*********************************************************************
@@ -313,43 +278,43 @@ void KB_Scan_Init( void )
  *
  * @return  none
  */
-// void KB_Sleep_Wakeup_Cfg( void )
-// {
-//     EXTI_InitTypeDef EXTI_InitStructure = { 0 };
+void KB_Sleep_Wakeup_Cfg( void )
+{
+    EXTI_InitTypeDef EXTI_InitStructure = { 0 };
 
-//     /* Enable GPIOB clock */
-//     RCC_APB2PeriphClockCmd( RCC_APB2Periph_AFIO, ENABLE );
+    /* Enable GPIOB clock */
+    RCC_APB2PeriphClockCmd( RCC_APB2Periph_AFIO, ENABLE );
 
-//     GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource12 );
-//     EXTI_InitStructure.EXTI_Line = EXTI_Line12;
-//     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
-//     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
-//     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-//     EXTI_Init( &EXTI_InitStructure );
+    GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource12 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line12;
+    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
+    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
+    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+    EXTI_Init( &EXTI_InitStructure );
 
-//     GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource13 );
-//     EXTI_InitStructure.EXTI_Line = EXTI_Line13;
-//     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
-//     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
-//     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-//     EXTI_Init( &EXTI_InitStructure );
+    GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource13 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line13;
+    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
+    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
+    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+    EXTI_Init( &EXTI_InitStructure );
 
-//     GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource14 );
-//     EXTI_InitStructure.EXTI_Line = EXTI_Line14;
-//     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
-//     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
-//     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-//     EXTI_Init( &EXTI_InitStructure );
+    GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource14 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line14;
+    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
+    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
+    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+    EXTI_Init( &EXTI_InitStructure );
 
-//     GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource15 );
-//     EXTI_InitStructure.EXTI_Line = EXTI_Line15;
-//     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
-//     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
-//     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-//     EXTI_Init( &EXTI_InitStructure );
+    GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource15 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line15;
+    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
+    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
+    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+    EXTI_Init( &EXTI_InitStructure );
 
-//     EXTI->INTENR |= EXTI_INTENR_MR12 | EXTI_INTENR_MR13 | EXTI_INTENR_MR14 | EXTI_INTENR_MR15;
-// }
+    EXTI->INTENR |= EXTI_INTENR_MR12 | EXTI_INTENR_MR13 | EXTI_INTENR_MR14 | EXTI_INTENR_MR15;
+}
 
 /*********************************************************************
  * @fn      KB_Scan
@@ -358,25 +323,9 @@ void KB_Scan_Init( void )
  *
  * @return  none
  */
-
-
-char Data_Buffer[64];
-
-uint16_t adcKB( void )
-{
-    uint16_t scan_result = 0;
-
-    scan_result |= (ADC_Values[0] > 1500) ? 0x8000 : 0;
-    scan_result |= (ADC_Values[1] > 1500) ? 0x4000 : 0;
-    scan_result |= (ADC_Values[2] > 1500) ? 0x2000 : 0;
-    scan_result |= (ADC_Values[3] > 1500) ? 0x1000 : 0;
-    scan_result |= (ADC_Values[4] > 1500) ? 0x0800 : 0;
-
-    return scan_result;
-}
-
 void KB_Scan( void )
 {
+
     static uint16_t scan_cnt = 0;
     static uint16_t scan_result = 0;
 
@@ -386,7 +335,8 @@ void KB_Scan( void )
         scan_cnt = 0;
 
         /* Determine whether the two scan results are consistent */
-        if( scan_result == ( adcKB() & 0xF800 ) )
+        if( scan_result == ( GPIO_ReadInputData( GPIOB ) & 0xF000 ) )
+        //여기에 scan을 GPIO_READInputData 말고 ADC 데이터로 바꾼 후, if문 추가로 자석축 사용.
         {
             KB_Scan_Done = 1;
             KB_Scan_Result = scan_result;
@@ -395,9 +345,10 @@ void KB_Scan( void )
     else if( ( scan_cnt % 5 ) == 0 )
     {
         /* Save the first scan result */
-        scan_result = ( adcKB() & 0xF800 );
+        scan_result = ( GPIO_ReadInputData( GPIOB ) & 0xF000 );
     }
 }
+
 
 /*********************************************************************
  * @fn      KB_Scan_Handle
@@ -574,10 +525,10 @@ void MS_Scan_Init( void )
     GPIO_InitTypeDef GPIO_InitStructure = { 0 };
 
     /* Enable GPIOA clock */
-    RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOA, ENABLE );
+    RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOC, ENABLE );
 
     /* Initialize GPIOA for the mouse scan */
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init( GPIOA, &GPIO_InitStructure );
@@ -597,35 +548,35 @@ void MS_Sleep_Wakeup_Cfg( void )
     /* Enable GPIOC clock */
     RCC_APB2PeriphClockCmd( RCC_APB2Periph_AFIO, ENABLE );
 
-    GPIO_EXTILineConfig( GPIO_PortSourceGPIOA, GPIO_PinSource4 );
-    EXTI_InitStructure.EXTI_Line = EXTI_Line4;
+    GPIO_EXTILineConfig( RCC_APB2Periph_GPIOC, GPIO_PinSource0 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line0;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init( &EXTI_InitStructure );
 
-    GPIO_EXTILineConfig( GPIO_PortSourceGPIOA, GPIO_PinSource5 );
-    EXTI_InitStructure.EXTI_Line = EXTI_Line5;
+    GPIO_EXTILineConfig( RCC_APB2Periph_GPIOC, GPIO_PinSource1 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line1;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init( &EXTI_InitStructure );
 
-    GPIO_EXTILineConfig( GPIO_PortSourceGPIOA, GPIO_PinSource6 );
-    EXTI_InitStructure.EXTI_Line = EXTI_Line6;
+    GPIO_EXTILineConfig( RCC_APB2Periph_GPIOC, GPIO_PinSource2 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line2;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init( &EXTI_InitStructure );
 
-    GPIO_EXTILineConfig( GPIO_PortSourceGPIOA, GPIO_PinSource7 );
-    EXTI_InitStructure.EXTI_Line = EXTI_Line7;
+    GPIO_EXTILineConfig( RCC_APB2Periph_GPIOC, GPIO_PinSource3 );
+    EXTI_InitStructure.EXTI_Line = EXTI_Line3;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Event;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init( &EXTI_InitStructure );
 
-    EXTI->INTENR |= EXTI_INTENR_MR4 | EXTI_INTENR_MR5 | EXTI_INTENR_MR6 | EXTI_INTENR_MR7;
+    EXTI->INTENR |= EXTI_INTENR_MR0 | EXTI_INTENR_MR1 | EXTI_INTENR_MR2 | EXTI_INTENR_MR3;
 }
 
 /*********************************************************************
@@ -646,7 +597,7 @@ void MS_Scan( void )
         scan_cnt = 0;
 
         /* Determine whether the two scan results are consistent */
-        if( scan_result == ( GPIO_ReadInputData( GPIOA ) & 0x00F0 ) )
+        if( scan_result == ( GPIO_ReadInputData( GPIOC ) & 0x000F ) )
         {
             MS_Scan_Result = scan_result;
             MS_Scan_Done = 1;
@@ -655,7 +606,7 @@ void MS_Scan( void )
     else if( scan_cnt >= 1 )
     {
         /* Save the first scan result */
-        scan_result = ( GPIO_ReadInputData( GPIOA ) & 0x00F0 );
+        scan_result = ( GPIO_ReadInputData( GPIOC ) & 0x000F );
     }
 }
 
@@ -750,7 +701,7 @@ void MCU_Sleep_Wakeup_Operate( void )
     __disable_irq( );
     USBHSD->HOST_CTRL &= ~USBHS_UH_PHY_SUSPENDM;
     EXTI_ClearFlag( EXTI_Line12 | EXTI_Line13 | EXTI_Line14 | EXTI_Line15 );
-    EXTI_ClearFlag( EXTI_Line4 | EXTI_Line5 | EXTI_Line6 | EXTI_Line7 );
+    EXTI_ClearFlag( EXTI_Line0 | EXTI_Line1 | EXTI_Line2 | EXTI_Line3 );
 
     _SEV( );
     _WFE( );
@@ -772,11 +723,264 @@ void MCU_Sleep_Wakeup_Operate( void )
         EXTI_ClearFlag( EXTI_Line12 | EXTI_Line13 | EXTI_Line14 | EXTI_Line15 );
         USBHS_Send_Resume( );
     }
-    else if( EXTI_GetFlagStatus( EXTI_Line4 | EXTI_Line5 | EXTI_Line6 | EXTI_Line7 ) != RESET )
+    else if( EXTI_GetFlagStatus( EXTI_Line0 | EXTI_Line1 | EXTI_Line2 | EXTI_Line3 ) != RESET )
     {
-        EXTI_ClearFlag( EXTI_Line4 | EXTI_Line5 | EXTI_Line6 | EXTI_Line7 );
+        EXTI_ClearFlag( EXTI_Line0 | EXTI_Line1 | EXTI_Line2 | EXTI_Line3 );
         USBHS_Send_Resume( );
     }
     __enable_irq( );
     printf( "Wake\r\n" );
+}
+
+
+/*********************************************************************
+ * @fn      KB_ADC_INIT
+ *
+ * @brief   adc init
+ *
+ * @return  none
+ */
+
+void KB_ADC_INIT( void )
+{
+    ADC_InitTypeDef ADC_InitStructure={0};
+    GPIO_InitTypeDef GPIO_InitStructure={0};
+    DMA_InitTypeDef DMA_InitStructure={0};
+
+    // 1. 클럭 활성화
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_ADC1, ENABLE );
+    RCC_AHBPeriphClockCmd( RCC_AHBPeriph_DMA1, ENABLE );
+    RCC_ADCCLKConfig(RCC_PCLK2_Div8);
+
+    // 2. GPIO 설정 (PA0~PA4)
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_4;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    // 3. DMA1 Channel1 설정
+    DMA_DeInit(DMA1_Channel1);
+    DMA_InitStructure.DMA_PeripheralBaseAddr = (u32)&ADC1->RDATAR;
+    DMA_InitStructure.DMA_MemoryBaseAddr = (u32)ADC_Values;
+    DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;
+    DMA_InitStructure.DMA_BufferSize = NUM_CHANNELS;
+    DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+    DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+    DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
+    DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
+    DMA_InitStructure.DMA_Mode = DMA_Mode_Circular; 
+    DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
+    DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
+    DMA_Init( DMA1_Channel1, &DMA_InitStructure );
+    DMA_Cmd( DMA1_Channel1, ENABLE );
+
+    // 4. ADC 설정
+    ADC_DeInit(ADC1);
+    ADC_InitStructure.ADC_Mode = ADC_Mode_Independent;
+    ADC_InitStructure.ADC_ScanConvMode = ENABLE;
+    ADC_InitStructure.ADC_ContinuousConvMode = ENABLE;
+    ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_None;
+    ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
+    ADC_InitStructure.ADC_NbrOfChannel = NUM_CHANNELS;
+    ADC_Init(ADC1, &ADC_InitStructure);
+
+    ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 1, ADC_SampleTime_239Cycles5);
+    ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 2, ADC_SampleTime_239Cycles5);
+    ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 3, ADC_SampleTime_239Cycles5);
+    ADC_RegularChannelConfig(ADC1, ADC_Channel_3, 4, ADC_SampleTime_239Cycles5);
+    ADC_RegularChannelConfig(ADC1, ADC_Channel_4, 5, ADC_SampleTime_239Cycles5);
+    ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 6, ADC_SampleTime_239Cycles5);
+    ADC_RegularChannelConfig(ADC1, ADC_Channel_6, 7, ADC_SampleTime_239Cycles5);
+
+    ADC_DMACmd(ADC1, ENABLE);
+    ADC_Cmd(ADC1, ENABLE);
+
+    ADC_ResetCalibration(ADC1);
+    while(ADC_GetResetCalibrationStatus(ADC1));
+    ADC_StartCalibration(ADC1);
+    while(ADC_GetCalibrationStatus(ADC1));
+    Calibrattion_Val = Get_CalibrationValue(ADC1); 
+
+    ADC_SoftwareStartConvCmd(ADC1, ENABLE);
+}
+
+/*********************************************************************
+ * @fn      adcKB
+ *
+ * @brief   keyboard scan adc data.
+ *
+ * @return  none
+ */
+
+uint16_t adcKB( void ){
+    uint16_t scan_result = 0;
+    scan_result |= (ADC_Values[0] > 1600) ? 0x8000 : 0;
+    scan_result |= (ADC_Values[1] > 1600) ? 0x4000 : 0;
+    scan_result |= (ADC_Values[2] > 1600) ? 0x2000 : 0;
+    scan_result |= (ADC_Values[3] > 1600) ? 0x1000 : 0;
+    scan_result |= (ADC_Values[4] > 1600) ? 0x0800 : 0;
+    return scan_result;
+}
+
+
+/*********************************************************************
+ * @fn      ADCKB_Scan
+ *
+ * @brief   Perform keyboard scan.
+ *
+ * @return  none
+ */
+
+void ADCKB_Scan( void )
+{
+
+    static uint16_t scan_cnt = 0;
+    static uint16_t scan_result = 0;
+
+    scan_cnt++;
+    if( ( scan_cnt % 10 ) == 0 )
+    {
+        scan_cnt = 0;
+
+        /* Determine whether the two scan results are consistent */
+        if( scan_result == ( adcKB() & 0xF800 ) )
+        //여기에 scan을 GPIO_READInputData 말고 ADC 데이터로 바꾼 후, if문 추가로 자석축 사용.
+        {
+            ADC_Scan_Done = 1;
+            ADC_Scan_Result = scan_result;
+        }
+    }
+    else if( ( scan_cnt % 5 ) == 0 )
+    {
+        /* Save the first scan result */
+        scan_result = ( adcKB() & 0xF800 );
+    }
+}
+
+
+
+/*********************************************************************
+ * @fn      ADC_Scan_Handle
+ *
+ * @brief   Handle keyboard scan data.
+ *
+ * @return  none
+ */
+void ADC_Scan_Handle( void ){
+    uint8_t i, j;
+    uint8_t status;
+    static uint8_t key_cnt = 0x00;
+    static uint8_t flag = 0x00;
+
+    if( ADC_Scan_Done ){
+        ADC_Scan_Done = 0;
+
+        if( ADC_Scan_Result != ADC_Scan_Last_Result ){
+            for( i = 11; i < 16; i++ ){
+                /* Determine that there is at least one key is pressed or released */
+                if( ( ADC_Scan_Result & ( 1 << i ) ) != ( ADC_Scan_Last_Result & ( 1 << i ) ) ){
+                    if( ( ADC_Scan_Result & ( 1 << i ) ) ) {          // Key press
+                        if( i == 11 ){
+                            for( j = 2; j < 8; j++ )
+                            {
+                                if( ADC_Data_Pack[ j ] == DEF_KEY_CHAR_F )
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                        if( i == 12 ){
+                            for( j = 2; j < 8; j++ )
+                            {
+                                if( ADC_Data_Pack[ j ] == DEF_KEY_CHAR_W )
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                        else if( i == 13 )
+                        {
+                            for( j = 2; j < 8; j++ )
+                            {
+                                if( ADC_Data_Pack[ j ] == DEF_KEY_CHAR_A )
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                        else if( i == 14 )
+                        {
+                            for( j = 2; j < 8; j++ )
+                            {
+                                if( ADC_Data_Pack[ j ] == DEF_KEY_CHAR_S )
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                        else if( i == 15 )
+                        {
+                            for( j = 2; j < 8; j++ )
+                            {
+                                if( ADC_Data_Pack[ j ] == DEF_KEY_CHAR_D )
+                                {
+                                    break;
+                                }
+                            }
+                        }
+
+                        if( j == 8 )
+                        {
+                            ADC_Data_Pack[ 5 ] = 0;
+                        }
+                        else
+                        {
+                            memcpy( &ADC_Data_Pack[ j ], &ADC_Data_Pack[ j + 1 ], ( 8 - j - 1 ) );
+                            ADC_Data_Pack[ 7 ] = 0;
+                        }
+                        key_cnt--;
+                    }
+                    else                                            // Key release
+                    {
+                        if( i == 11 )
+                        {
+                            ADC_Data_Pack[ 2 + key_cnt ] = DEF_KEY_CHAR_F;
+                        }
+                        else if( i == 12 )
+                        {
+                            ADC_Data_Pack[ 2 + key_cnt ] = DEF_KEY_CHAR_W;
+                        }
+                        else if( i == 13 )
+                        {
+                            ADC_Data_Pack[ 2 + key_cnt ] = DEF_KEY_CHAR_A;
+                        }
+                        else if( i == 14 )
+                        {
+                            ADC_Data_Pack[ 2 + key_cnt ] = DEF_KEY_CHAR_S;
+                        }
+                        else if( i == 15 )
+                        {
+                            ADC_Data_Pack[ 2 + key_cnt ] = DEF_KEY_CHAR_D;
+                        }
+                        key_cnt++;
+                    }
+                }
+            }
+
+            /* Copy the keyboard data to the buffer of endpoint 1 and set the data uploading flag */
+            ADC_Scan_Last_Result = ADC_Scan_Result;
+            flag = 1;
+        }
+    }
+
+    if( flag )
+    {
+        /* Load keyboard data to endpoint 1 */
+        status = USBHS_Endp_DataUp( DEF_UEP1, ADC_Data_Pack, sizeof( ADC_Data_Pack ), DEF_UEP_CPY_LOAD );
+
+        if( status == READY )
+        {
+            /* Clear flag after successful loading */
+            flag = 0;
+        }
+    }
 }

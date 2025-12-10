@@ -15,7 +15,7 @@
  * Composite Keyboard and Mouse Example:
  * This example uses PB12-PB15 and PA4-PA7 to simulate keyboard key pressing and mouse
  * movement respectively, active low.
- * At the same time, it also uses USART2(PA3) to receive the specified data sent from
+ * At the same time, it also uses USART3(PA3) to receive the specified data sent from
  * the host to simulate the pressing and releasing of the following specific keyboard
  * keys. Data is sent in hexadecimal format and 1 byte at a time.
  * 'W' -> 0x1A
@@ -55,9 +55,9 @@ int main( void )
 	printf( "ChipID:%08x\r\n", DBGMCU_GetCHIPID() );
     printf( "USBHS Composite KM Device Test\r\n" );
 
-	/* Initialize USART2 for receiving the specified keyboard data */
-	USART2_Init( 115200 );
-	printf( "USART2 Init OK!\r\n" );
+	/* Initialize USART3 for receiving the specified keyboard data */
+	USART3_Init( 115200 );
+	printf( "USART3 Init OK!\r\n" );
 
 	/* Initialize GPIO for keyboard scan */
 	KB_Scan_Init( );
@@ -68,6 +68,10 @@ int main( void )
 	MS_Scan_Init( );
 	MS_Sleep_Wakeup_Cfg( );
 	printf( "MS Scan Init OK!\r\n" );
+
+	/* Initialize GPIO for adc scan */
+	KB_ADC_INIT( );
+	printf( "adc Scan Init OK!\r\n" );
 
 	/* Initialize timer for Keyboard and mouse scan timing */
 	TIM3_Init( 1, SystemCoreClock / 10000 - 1 );
@@ -86,13 +90,16 @@ int main( void )
 	        KB_Scan_Handle(  );
 
 	        /* Handle keyboard lighting */
-	        // KB_LED_Handle( );
+	        KB_LED_Handle( );
 
             /* Handle mouse scan data */
-            // MS_Scan_Handle( );
+            MS_Scan_Handle( );
 
-            /* Handle USART2 receiving data */
-            // USART2_Receive_Handle( );
+            /* Handle adc scan data */
+            ADC_Scan_Handle( );
+
+            /* Handle USART3 receiving data */
+            USART3_Receive_Handle( );
 	    }
     }
 }

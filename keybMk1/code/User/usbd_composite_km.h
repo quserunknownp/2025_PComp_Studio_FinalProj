@@ -26,6 +26,8 @@
 #define DEF_KEY_CHAR_A              0x04                                        /* "A" */
 #define DEF_KEY_CHAR_S              0x16                                        /* "S" */
 #define DEF_KEY_CHAR_D              0x07                                        /* "D" */
+#define DEF_KEY_CHAR_F              0x09                                        /* "F" */
+
 
 /*******************************************************************************/
 /* Global Variable Declaration */
@@ -34,9 +36,17 @@ extern volatile uint8_t  KB_LED_Cur_Status;
 
 /*******************************************************************************/
 /* Function Declaration */
+
+
+extern void KB_ADC_INIT( void );
+extern uint16_t adcKB( void );
+extern void ADC_Scan_Handle( void );
+extern void ADCKB_Scan( void );
+
+
 extern void TIM3_Init( uint16_t arr, uint16_t psc );
-extern void USART2_Init( uint32_t baudrate );
-extern void USART2_Receive_Handle( void );
+extern void USART3_Init( uint32_t baudrate );
+extern void USART3_Receive_Handle( void );
 extern void KB_Scan_Init( void );
 extern void KB_Sleep_Wakeup_Cfg( void );
 extern void KB_Scan( void );
@@ -48,6 +58,8 @@ extern void MS_Scan( void );
 extern void MS_Scan_Handle( void );
 extern void USB_Sleep_Wakeup_CFG( void );
 extern void MCU_Sleep_Wakeup_Operate( void );
+
+
 
 
 #endif
